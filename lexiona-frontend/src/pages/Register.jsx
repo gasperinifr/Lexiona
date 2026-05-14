@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 import toast from 'react-hot-toast'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, ArrowLeft } from 'lucide-react'
 
 export default function Register() {
   const [form, setForm] = useState({ nome: '', email: '', senha: '', confirmar: '' })
@@ -21,7 +21,6 @@ export default function Register() {
       toast.error('A senha deve ter pelo menos 6 caracteres')
       return
     }
-
     setLoading(true)
     try {
       await api.post('/auth/cadastro', {
@@ -29,7 +28,7 @@ export default function Register() {
         email: form.email,
         senha: form.senha,
       })
-      toast.success('Conta criada! Voce ja pode entrar.')
+      toast.success('Conta criada! Verifique seu e-mail para confirmar.')
       navigate('/login')
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Erro ao criar conta')
@@ -41,6 +40,13 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-lexiona-50 to-lexiona-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md animate-enter">
+        {/* Voltar para landing */}
+        <div className="mb-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-lexiona-500 hover:text-lexiona-700 transition">
+            <ArrowLeft size={15} /> Voltar ao início
+          </Link>
+        </div>
+
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-lexiona-600 rounded-2xl mb-4 shadow-lg">
             <BookOpen className="text-white" size={28} />
@@ -54,9 +60,9 @@ export default function Register() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {[
-              { label: 'Seu nome', name: 'nome', type: 'text', placeholder: 'Prof. Maria Silva' },
-              { label: 'E-mail', name: 'email', type: 'email', placeholder: 'seu@email.com' },
-              { label: 'Senha', name: 'senha', type: 'password', placeholder: '••••••••' },
+              { label: 'Seu nome', name: 'nome',      type: 'text',     placeholder: 'Prof. Maria Silva' },
+              { label: 'E-mail',   name: 'email',     type: 'email',    placeholder: 'seu@email.com' },
+              { label: 'Senha',    name: 'senha',     type: 'password', placeholder: '••••••••' },
               { label: 'Confirmar senha', name: 'confirmar', type: 'password', placeholder: '••••••••' },
             ].map(({ label, name, type, placeholder }) => (
               <div key={name}>

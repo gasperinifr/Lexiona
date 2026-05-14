@@ -7,6 +7,10 @@
     box-sizing: border-box;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     font-family: 'DM Sans', system-ui, sans-serif;
     background-color: #f8faf9;
@@ -19,7 +23,9 @@
   }
 }
 
-/* Calendário react-big-calendar — sobrescrever estilos */
+/* ============================================================
+   Calendário react-big-calendar — sobrescrever estilos
+   ============================================================ */
 .rbc-calendar {
   font-family: 'DM Sans', sans-serif;
   font-size: 0.875rem;
@@ -55,13 +61,17 @@
 .rbc-event.status-realizada { background-color: #3b82f6; }
 .rbc-event.status-feriado   { background-color: #e5e7eb; color: #6b7280; }
 
-/* Scrollbar custom */
+/* ============================================================
+   Scrollbar custom
+   ============================================================ */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #f0f9f4; }
 ::-webkit-scrollbar-thumb { background: #8accae; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #2e9168; }
 
-/* Animações de entrada */
+/* ============================================================
+   Animações gerais do app
+   ============================================================ */
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -69,4 +79,110 @@
 
 .animate-enter {
   animation: fadeSlideUp 0.35s ease-out;
+}
+
+/* ============================================================
+   LANDING PAGE — Keyframes
+   ============================================================ */
+
+/* Flutuação suave para os mockups do hero */
+@keyframes floatCard {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33%       { transform: translateY(-8px) rotate(0.5deg); }
+  66%       { transform: translateY(-4px) rotate(-0.3deg); }
+}
+
+@keyframes floatCardDelay {
+  0%, 100% { transform: translateY(0px) rotate(-1deg); }
+  33%       { transform: translateY(-6px) rotate(-0.5deg); }
+  66%       { transform: translateY(-10px) rotate(-1.5deg); }
+}
+
+@keyframes floatCardSlow {
+  0%, 100% { transform: translateY(0px) rotate(1deg); }
+  50%       { transform: translateY(-12px) rotate(0.5deg); }
+}
+
+/* Rotação lenta para as folhas decorativas */
+@keyframes rotateSlow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes rotateSlowReverse {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+/* Bounce da seta de scroll */
+@keyframes bounceArrow {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%       { transform: translateX(-50%) translateY(8px); }
+}
+
+/* Reveal lateral — hero texto */
+@keyframes revealLeft {
+  from { opacity: 0; transform: translateX(-32px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes revealRight {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================================
+   LANDING PAGE — Classes utilitárias
+   ============================================================ */
+
+/* Raiz da landing — resetar bg do body para o fundo creme */
+.lp-root {
+  background-color: #faf8f0;
+}
+
+/* Flutuação dos cards mockup */
+.lp-float {
+  animation: floatCard 6s ease-in-out infinite;
+}
+
+.lp-float-delay {
+  animation: floatCardDelay 7s ease-in-out infinite;
+  animation-delay: -2s;
+}
+
+.lp-float-slow {
+  animation: floatCardSlow 8s ease-in-out infinite;
+  animation-delay: -4s;
+}
+
+/* Folhas decorativas */
+.lp-rotate-slow {
+  animation: rotateSlow 60s linear infinite;
+  transform-origin: center;
+}
+
+.lp-rotate-slow-reverse {
+  animation: rotateSlowReverse 80s linear infinite;
+  transform-origin: center;
+}
+
+/* Seta bounce */
+.lp-bounce {
+  animation: bounceArrow 2s ease-in-out infinite;
+}
+
+/* Reveal do hero */
+.lp-reveal-left {
+  animation: revealLeft 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.lp-reveal-right {
+  animation: revealRight 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.2s;
+}
+
+/* Textura de pontos para seções escuras */
+.lp-dot-texture {
+  background-image: radial-gradient(circle, #54b088 1px, transparent 1px);
+  background-size: 28px 28px;
 }

@@ -8,13 +8,13 @@ export default function Navbar() {
 
   const handleLogout = () => {
     logout()
-    navigate('/login')
+    navigate('/')
   }
 
   const links = [
-    { to: '/', label: 'Agenda', icon: LayoutDashboard, exact: true },
-    { to: '/calendario', label: 'Calendário', icon: Calendar },
-    { to: '/disciplinas', label: 'Disciplinas', icon: BookOpen },
+    { to: '/app',             label: 'Agenda',      icon: LayoutDashboard, exact: true },
+    { to: '/app/calendario',  label: 'Calendário',  icon: Calendar },
+    { to: '/app/disciplinas', label: 'Disciplinas', icon: BookOpen },
   ]
 
   return (
@@ -22,12 +22,12 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <div className="flex items-center gap-2">
+          <NavLink to="/app" className="flex items-center gap-2">
             <div className="w-7 h-7 bg-lexiona-600 rounded-lg flex items-center justify-center">
               <BookOpen size={14} className="text-white" />
             </div>
             <span className="font-display font-bold text-lexiona-900 text-lg">Lexiona</span>
-          </div>
+          </NavLink>
 
           {/* Nav links */}
           <nav className="flex items-center gap-1">
@@ -55,8 +55,11 @@ export default function Navbar() {
             <span className="text-sm text-lexiona-600 hidden sm:block truncate max-w-32">
               {professor?.nome?.split(' ')[0]}
             </span>
-            <button onClick={handleLogout}
-              className="p-2 text-lexiona-400 hover:text-lexiona-700 hover:bg-lexiona-50 rounded-lg transition">
+            <button
+              onClick={handleLogout}
+              className="p-2 text-lexiona-400 hover:text-lexiona-700 hover:bg-lexiona-50 rounded-lg transition"
+              title="Sair"
+            >
               <LogOut size={16} />
             </button>
           </div>

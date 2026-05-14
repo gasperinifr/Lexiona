@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
-import { BookOpen, Eye, EyeOff } from 'lucide-react'
+import { BookOpen, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -20,7 +20,7 @@ export default function Login() {
       if (!prof.onboarding_concluido) {
         navigate('/onboarding')
       } else {
-        navigate('/')
+        navigate('/app')
       }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'E-mail ou senha incorretos')
@@ -32,6 +32,13 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-lexiona-50 to-lexiona-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md animate-enter">
+        {/* Voltar para landing */}
+        <div className="mb-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-lexiona-500 hover:text-lexiona-700 transition">
+            <ArrowLeft size={15} /> Voltar ao início
+          </Link>
+        </div>
+
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-lexiona-600 rounded-2xl mb-4 shadow-lg">
