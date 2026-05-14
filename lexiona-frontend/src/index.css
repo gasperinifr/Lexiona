@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background-color: #f8faf9;
+    color: #1a2e25;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Calendário react-big-calendar — sobrescrever estilos */
+.rbc-calendar {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.875rem;
+}
+
+.rbc-toolbar button {
+  color: #1e7452;
+  border-color: #bbe2ce;
+}
+
+.rbc-toolbar button:hover,
+.rbc-toolbar button.rbc-active {
+  background-color: #2e9168;
+  color: white;
+  border-color: #2e9168;
+}
+
+.rbc-today {
+  background-color: #f0f9f4;
+}
+
+.rbc-event {
+  border-radius: 6px;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  font-family: 'DM Sans', sans-serif;
+  border: none;
+}
+
+.rbc-event.status-planejada { background-color: #2e9168; }
+.rbc-event.status-pendente  { background-color: #d97706; }
+.rbc-event.status-cancelada { background-color: #6b7280; }
+.rbc-event.status-realizada { background-color: #3b82f6; }
+.rbc-event.status-feriado   { background-color: #e5e7eb; color: #6b7280; }
+
+/* Scrollbar custom */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f0f9f4; }
+::-webkit-scrollbar-thumb { background: #8accae; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2e9168; }
+
+/* Animações de entrada */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-enter {
+  animation: fadeSlideUp 0.35s ease-out;
+}
