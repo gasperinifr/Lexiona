@@ -5,36 +5,40 @@ export default function ProgressoBar({ disciplina }) {
   const [progresso, setProgresso] = useState(null)
 
   useEffect(() => {
+    if (!disciplina?.id) return
     api.get(`/disciplinas/${disciplina.id}/progresso`)
       .then(r => setProgresso(r.data))
       .catch(() => {})
-  }, [disciplina.id])
+  }, [disciplina?.id])
 
-  if (!progresso) return null
+  if (!progresso || progresso.total === 0) return null
 
   const pct = progresso.percentual_planejado
+  const corBarra =
+    pct < 30 ? 'bg-red-400' :
+    pct < 70 ? 'bg-amber-400' :
+               'bg-lexiona-500'
 
   return (
-    <div className="bg-white border border-lexiona-100 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-lexiona-900 truncate">{disciplina.nome}</p>
-          {disciplina.turma && <p className="text-xs text-lexiona-400">{disciplina.turma}</p>}
-        </div>
-        <span className="text-sm font-semibold text-lexiona-700 ml-3 flex-shrink-0">{pct}%</span>
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-lexiona-500 font-medium">Planejamento</span>
+        <span className="font-semibold text-lexiona-700">{pct}%</span>
       </div>
-      <div className="bg-lexiona-100 rounded-full h-1.5 overflow-hidden">
+
+      <div className="w-full bg-lexiona-100 rounded-full h-2 overflow-hidden">
         <div
-          className="h-1.5 rounded-full transition-all duration-700"
-          style={{
-            width: `${pct}%`,
-            backgroundColor: pct < 30 ? '#d97706' : pct < 70 ? '#2e9168' : '#1e7452',
-          }}
+          className={`h-2 rounded-full transition-all duration-700 ${corBarra}`}
+          style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="flex justify-between mt-1.5">
-        <span className="text-xs text-lexiona-400">{progresso.planejadas} planejadas</span>
-        <span className="text-xs text-lexiona-400">{progresso.total} aulas no total</span>
+
+      <div className="flex items-center gap-3 text-xs text-lexiona-400">
+        <span>{progresso.planejadas} planejadas</span>
+        <span className="text-lexiona-200">·</span>
+        <span>{progresso.realizadas} realizadas</span>
+        <span className="text-lexiona-200">·</span>
+        <span>{progresso.pendentes} pendentes</span>
       </div>
     </div>
   )

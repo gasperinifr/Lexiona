@@ -16,6 +16,15 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
       - ENVIRONMENT=production
+      # Redis local (para dev); em produção use REDIS_URL apontando para Upstash
+      - REDIS_URL=redis://redis:6379
+      # Google Calendar (opcional)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8000/google-calendar/callback}
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -39,3 +48,16 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: lexiona-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru

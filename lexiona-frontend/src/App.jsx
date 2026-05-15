@@ -1,54 +1,111 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from './context/AuthContext'
-import LandingPage from './pages/LandingPage'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Onboarding from './pages/Onboarding'
-import Dashboard from './pages/Dashboard'
-import Calendario from './pages/Calendario'
-import Disciplinas from './pages/Disciplinas'
-import Layout from './components/Layout'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
+import { Suspense, lazy } from 'react'
 
-function RotaProtegida({ children }) {
-  const { user, loading } = useAuth()
-  if (loading) return (
-    <div className="flex items-center justify-center h-screen bg-[#f8faf9]">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lexiona-600" />
-    </div>
-  )
-  if (!user) return <Navigate to="/login" replace />
+import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
+
+// Landing Page (eager — primeira impressão)
+import LandingPage from './pages/LandingPage'
+
+// App pages (lazy — carregam só quando necessário)
+const Login = lazy(() => import('./pages/Login'))
+const Cadastro = lazy(() => import('./pages/Cadastro'))
+const Onboarding = lazy(() => import('./pages/Onboarding'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Calendario = lazy(() => import('./pages/Calendario'))
+const Disciplinas = lazy(() => import('./pages/Disciplinas'))
+const Relatorios = lazy(() => import('./pages/Relatorios'))
+const Configuracoes = lazy(() => import('./pages/Configuracoes'))
+
+function ProtectedRoute({ children }) {
+  const token = localStorage.getItem('lexiona_token')
+  if (!token) return <Navigate to="/login" replace />
   return children
 }
 
-function RotaPublica({ children }) {
-  const { user, loading } = useAuth()
-  if (loading) return null
-  if (user) return <Navigate to="/app" replace />
-  return children
+function LoadingSpinner() {
+  return (
+    <div className="min-h-screen bg-cream flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 border-3 border-lexiona-200 border-t-lexiona-600 rounded-full animate-spin" />
+        <p className="text-sm text-lexiona-500 font-medium">Carregando...</p>
+      </div>
+    </div>
+  )
 }
 
 export default function App() {
   return (
-    <Routes>
-      {/* Landing page — pública */}
-      <Route path="/" element={<LandingPage />} />
+    <BrowserRouter>
+      <ErrorBoundary>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              fontFamily: 'DM Sans, system-ui, sans-serif',
+              fontSize: '14px',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              boxShadow: '0 4px 16px rgba(15,48,35,0.12)',
+            },
+            success: {
+              style: {
+                background: '#f0faf5',
+                color: '#0f3023',
+                border: '1px solid #aee4cc',
+              },
+              iconTheme: { primary: '#2e9168', secondary: '#f0faf5' },
+            },
+            error: {
+              style: {
+                background: '#fff5f5',
+                color: '#7f1d1d',
+                border: '1px solid #fecaca',
+              },
+            },
+          }}
+        />
 
-      {/* Rotas públicas (redireciona para /app se já logado) */}
-      <Route path="/login"    element={<RotaPublica><Login /></RotaPublica>} />
-      <Route path="/cadastro" element={<RotaPublica><Register /></RotaPublica>} />
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
+            {/* Público */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/cadastro" element={<Cadastro />} />
 
-      {/* Onboarding — protegido, fora do layout principal */}
-      <Route path="/onboarding" element={<RotaProtegida><Onboarding /></RotaProtegida>} />
+            {/* Onboarding protegido (sem layout) */}
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <Onboarding />
+                </ProtectedRoute>
+              }
+            />
 
-      {/* App autenticado — tudo sob /app */}
-      <Route path="/app" element={<RotaProtegida><Layout /></RotaProtegida>}>
-        <Route index element={<Dashboard />} />
-        <Route path="calendario"  element={<Calendario />} />
-        <Route path="disciplinas" element={<Disciplinas />} />
-      </Route>
+            {/* App protegido com layout */}
+            <Route
+              path="/app"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Dashboard />} />
+              <Route path="calendario" element={<Calendario />} />
+              <Route path="disciplinas" element={<Disciplinas />} />
+              <Route path="relatorios" element={<Relatorios />} />
+              <Route path="configuracoes" element={<Configuracoes />} />
+            </Route>
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
+    </BrowserRouter>
   )
 }

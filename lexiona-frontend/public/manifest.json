@@ -1,0 +1,55 @@
+{
+  "name": "Lexiona - Planejamento Pedagógico",
+  "short_name": "Lexiona",
+  "description": "Plataforma de planejamento pedagógico inteligente para docentes brasileiros",
+  "theme_color": "#2e9168",
+  "background_color": "#faf8f0",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "lang": "pt-BR",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Início",
+      "description": "Ver agenda do dia",
+      "url": "/app/",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Calendário",
+      "short_name": "Calendário",
+      "description": "Ver calendário de aulas",
+      "url": "/app/calendario",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

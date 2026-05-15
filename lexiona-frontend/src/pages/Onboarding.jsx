@@ -1,319 +1,488 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../services/api'
-import { useAuth } from '../context/AuthContext'
+import { api, toastErro } from '../services/api'
 import toast from 'react-hot-toast'
-import { BookOpen, GraduationCap, Calendar, CheckCircle } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Leaf, Check } from 'lucide-react'
 
-const MODALIDADES = [
-  'Educação Básica (Fundamental/Médio)',
-  'Ensino Superior',
-  'Cursos Livres/Técnicos',
-  'EJA',
-]
-
-const METODOLOGIAS = ['Tradicional', 'ABP', 'Ensino Híbrido', 'Flipped Classroom', 'Sala de Aula Invertida']
-
+const MODALIDADES = ['Escola pública', 'Escola particular', 'Ensino superior', 'Cursinho', 'Aulas particulares', 'Outros']
 const NIVEIS = [
   { value: 'fundamental', label: 'Fundamental' },
   { value: 'medio', label: 'Médio' },
   { value: 'superior', label: 'Superior' },
-  { value: 'livre', label: 'Livre' },
   { value: 'tecnico', label: 'Técnico' },
+  { value: 'livre', label: 'Livre / Outro' },
 ]
-
-const DIAS_SEMANA = [
-  { value: 0, label: 'Dom' }, { value: 1, label: 'Seg' }, { value: 2, label: 'Ter' },
-  { value: 3, label: 'Qua' }, { value: 4, label: 'Qui' }, { value: 5, label: 'Sex' }, { value: 6, label: 'Sab' },
+const TURNOS = [
+  { value: 'matutino', label: 'Matutino', desc: 'Manhã' },
+  { value: 'vespertino', label: 'Vespertino', desc: 'Tarde' },
+  { value: 'noturno', label: 'Noturno', desc: 'Noite' },
+  { value: 'integral', label: 'Integral', desc: 'Dia todo' },
+  { value: 'particular', label: 'Particular / Irregular', desc: 'Sem horário fixo' },
 ]
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const METODOLOGIAS = ['Tradicional', 'Construtivista', 'Sociointeracionista', 'Ativo / PBL', 'Híbrido', 'Outro']
 
 export default function Onboarding() {
+  const navigate = useNavigate()
   const [passo, setPasso] = useState(1)
   const [loading, setLoading] = useState(false)
-  const { professor, updateProfessor } = useAuth()
-  const navigate = useNavigate()
+  const professor = JSON.parse(localStorage.getItem('lexiona_professor') || '{}')
 
-  const [step1, setStep1] = useState({
-    nome: professor?.nome || '',
-    instituicao: '',
-    modalidades: [],
-  })
+  // Passo 1 — Perfil
+  const [modalidades, setModalidades] = useState([])
+  const [modalidadeOutro, setModalidadeOutro] = useState('')
 
-  const [step3, setStep3] = useState({
-    nome: '', turma: '', nivel: 'medio', carga_horaria_total: 3600,
-    metodologia: 'Tradicional', periodo_inicio: '', periodo_fim: '',
-    dias_semana: [], horario_inicio: '', horario_fim: '',
-  })
+  // Passo 2 — Período letivo
+  const [semPeriodoFixo, setSemPeriodoFixo] = useState(false)
+  const [periodoInicio, setPeriodoInicio] = useState('')
+  const [periodoFim, setPeriodoFim] = useState('')
 
-  const toggleModalidade = (m) => {
-    setStep1(s => ({
-      ...s,
-      modalidades: s.modalidades.includes(m)
-        ? s.modalidades.filter(x => x !== m)
-        : [...s.modalidades, m],
-    }))
+  // Passo 3 — Disciplina
+  const [nomeDisciplina, setNomeDisciplina] = useState('')
+  const [turma, setTurma] = useState('')
+  const [turno, setTurno] = useState('')
+  const [nivel, setNivel] = useState('medio')
+  const [metodologia, setMetodologia] = useState('Tradicional')
+  const [cargaHoraria, setCargaHoraria] = useState('50')
+  const [diasSemana, setDiasSemana] = useState([])
+  const [horarioInicio, setHorarioInicio] = useState('')
+  const [horarioFim, setHorarioFim] = useState('')
+  const [bncc, setBncc] = useState('')
+  const [horarioIrregular, setHorarioIrregular] = useState(false)
+
+  function toggleModalidade(m) {
+    setModalidades(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
   }
 
-  const toggleDia = (d) => {
-    setStep3(s => ({
-      ...s,
-      dias_semana: s.dias_semana.includes(d)
-        ? s.dias_semana.filter(x => x !== d)
-        : [...s.dias_semana, d],
-    }))
+  function toggleDia(d) {
+    setDiasSemana(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])
   }
 
-  const avancar = async () => {
+  async function handleProximo() {
     if (passo === 1) {
-      if (!step1.nome || step1.modalidades.length === 0) {
-        toast.error('Preencha seu nome e selecione ao menos uma modalidade')
+      if (modalidades.length === 0) {
+        toast.error('Selecione pelo menos uma modalidade de ensino.')
         return
       }
       setLoading(true)
       try {
-        await api.put('/auth/perfil', step1)
-        updateProfessor(step1)
+        const modFinal = modalidades.includes('Outros') && modalidadeOutro
+          ? [...modalidades.filter(m => m !== 'Outros'), modalidadeOutro]
+          : modalidades
+        await api.post('/auth/perfil', {}, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('lexiona_token')}` },
+        })
+        await api.put('/auth/perfil', {
+          modalidades: modFinal,
+          nome: professor.nome,
+        })
         setPasso(2)
-      } catch {
-        toast.error('Erro ao salvar perfil')
+      } catch (err) {
+        toastErro(err, 'Erro ao salvar perfil.')
       } finally {
         setLoading(false)
       }
-    } else if (passo === 2) {
-      setPasso(3)
-    } else if (passo === 3) {
-      if (!step3.nome || step3.dias_semana.length === 0 || !step3.periodo_inicio || !step3.periodo_fim) {
-        toast.error('Preencha nome da disciplina, período e dias de aula')
+      return
+    }
+
+    if (passo === 2) {
+      if (!semPeriodoFixo && (!periodoInicio || !periodoFim)) {
+        toast.error('Informe o período letivo ou marque "Não tenho período letivo fixo".')
         return
       }
+      setPasso(3)
+      return
+    }
+
+    if (passo === 3) {
+      if (!nomeDisciplina.trim()) { toast.error('Informe o nome da disciplina.'); return }
+      if (!turno) { toast.error('Selecione o turno da disciplina.'); return }
+      if (!horarioIrregular && !semPeriodoFixo) {
+        if (diasSemana.length === 0) { toast.error('Selecione pelo menos um dia da semana.'); return }
+      }
+
       setLoading(true)
       try {
-        await api.post('/disciplinas/', {
-          ...step3,
-          carga_horaria_total: Number(step3.carga_horaria_total),
-          horario_inicio: step3.horario_inicio || null,
-          horario_fim: step3.horario_fim || null,
-        })
+        const modoIrregular = horarioIrregular || turno === 'particular'
+        const payload = {
+          nome: nomeDisciplina.trim(),
+          turma: turma.trim() || null,
+          turno,
+          nivel,
+          carga_horaria_total: parseInt(cargaHoraria) || 50,
+          metodologia,
+          modo_planejamento: (modoIrregular || semPeriodoFixo) ? 'irregular' : 'periodico',
+          bncc_componente: bncc.trim() || null,
+          ...((!modoIrregular && !semPeriodoFixo) && {
+            periodo_inicio: periodoInicio,
+            periodo_fim: periodoFim,
+            dias_semana: diasSemana,
+            horario_inicio: horarioInicio || null,
+            horario_fim: horarioFim || null,
+          }),
+        }
+
+        await api.post('/disciplinas/', payload)
         await api.post('/auth/onboarding/concluir')
-        updateProfessor({ onboarding_concluido: true })
-        toast.success('Tudo pronto! Bem-vindo ao Lexiona 🎉')
+        toast.success('Tudo pronto! Seu espaço pedagógico está configurado 🎉')
         navigate('/app')
       } catch (err) {
-        toast.error(err.response?.data?.detail || 'Erro ao criar disciplina')
+        toastErro(err, 'Erro ao criar disciplina.')
       } finally {
         setLoading(false)
       }
     }
   }
 
-  const passos = [
-    { num: 1, label: 'Seu perfil',          icon: GraduationCap },
-    { num: 2, label: 'Período letivo',       icon: Calendar },
-    { num: 3, label: 'Primeira disciplina',  icon: BookOpen },
-  ]
+  const modoIrregularAtivo = horarioIrregular || turno === 'particular'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-lexiona-50 to-lexiona-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl animate-enter">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-display font-bold text-lexiona-900">Configurar o Lexiona</h1>
-          <p className="text-lexiona-600 mt-2">3 passos rápidos para começar a planejar</p>
+    <div className="min-h-screen bg-cream flex flex-col">
+
+      {/* Header */}
+      <header className="bg-white border-b border-lexiona-100 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-lexiona-600 rounded-lg flex items-center justify-center">
+            <Leaf size={16} className="text-white" />
+          </div>
+          <span className="font-display font-bold text-lexiona-900">Lexiona</span>
         </div>
+        <span className="text-sm text-lexiona-400">Passo {passo} de 3</span>
+      </header>
 
-        {/* Indicador de passos */}
-        <div className="flex items-center justify-center mb-8 gap-2 flex-wrap">
-          {passos.map((p, i) => (
-            <div key={p.num} className="flex items-center gap-2">
-              <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                passo === p.num
-                  ? 'bg-lexiona-600 text-white'
-                  : passo > p.num
-                  ? 'bg-lexiona-200 text-lexiona-700'
-                  : 'bg-white text-lexiona-400 border border-lexiona-200'
-              }`}>
-                {passo > p.num ? <CheckCircle size={16} /> : <p.icon size={16} />}
-                {p.label}
-              </div>
-              {i < passos.length - 1 && (
-                <div className={`w-8 h-0.5 ${passo > p.num ? 'bg-lexiona-400' : 'bg-lexiona-200'}`} />
-              )}
-            </div>
-          ))}
-        </div>
+      {/* Progress */}
+      <div className="bg-white border-b border-lexiona-50">
+        <div className="h-1 bg-lexiona-600 transition-all duration-500" style={{ width: `${(passo / 3) * 100}%` }} />
+      </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-lexiona-100 p-8">
+      <div className="flex-1 flex items-start justify-center px-4 py-10">
+        <div className="w-full max-w-lg space-y-6 animate-fade-in">
 
-          {/* Passo 1 */}
+          {/* ── PASSO 1 ─────────────────────────────── */}
           {passo === 1 && (
-            <div className="space-y-5">
-              <h2 className="text-xl font-display font-semibold text-lexiona-900">Sobre você</h2>
-
+            <>
               <div>
-                <label className="block text-sm font-medium text-lexiona-700 mb-1">Seu nome completo</label>
-                <input type="text" value={step1.nome}
-                  onChange={e => setStep1({ ...step1, nome: e.target.value })}
-                  placeholder="Prof. Maria Silva"
-                  className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
+                <h1 className="font-display text-2xl font-bold text-lexiona-900">
+                  Olá, {professor.nome?.split(' ')[0] || 'professor'}! 👋
+                </h1>
+                <p className="text-lexiona-500 mt-1">
+                  Vamos configurar seu espaço pedagógico. Começa contando onde você leciona.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-lexiona-700 mb-1">Instituição (opcional)</label>
-                <input type="text" value={step1.instituicao}
-                  onChange={e => setStep1({ ...step1, instituicao: e.target.value })}
-                  placeholder="Nome da escola ou universidade"
-                  className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-lexiona-700 mb-2">
-                  Onde você leciona? (marque todas que se aplicam)
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-lexiona-800">Onde você leciona?</label>
                 <div className="grid grid-cols-2 gap-2">
                   {MODALIDADES.map(m => (
-                    <button key={m} type="button" onClick={() => toggleModalidade(m)}
-                      className={`p-3 rounded-xl text-sm text-left transition-all border-2 ${
-                        step1.modalidades.includes(m)
-                          ? 'border-lexiona-500 bg-lexiona-50 text-lexiona-800 font-medium'
-                          : 'border-lexiona-100 text-lexiona-600 hover:border-lexiona-300'
-                      }`}>
+                    <button
+                      key={m}
+                      onClick={() => toggleModalidade(m)}
+                      className={`px-4 py-3 rounded-xl text-sm font-medium border transition-all text-left ${
+                        modalidades.includes(m)
+                          ? 'bg-lexiona-600 text-white border-lexiona-600'
+                          : 'bg-white text-lexiona-700 border-lexiona-200 hover:border-lexiona-400'
+                      }`}
+                    >
                       {m}
                     </button>
                   ))}
                 </div>
+                {modalidades.includes('Outros') && (
+                  <input
+                    value={modalidadeOutro}
+                    onChange={e => setModalidadeOutro(e.target.value)}
+                    placeholder="Descreva onde você leciona..."
+                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white mt-2"
+                  />
+                )}
               </div>
-            </div>
+            </>
           )}
 
-          {/* Passo 2 */}
+          {/* ── PASSO 2 ─────────────────────────────── */}
           {passo === 2 && (
-            <div className="space-y-5">
-              <h2 className="text-xl font-display font-semibold text-lexiona-900">Período letivo</h2>
-              <p className="text-sm text-lexiona-600">
-                Os feriados nacionais de 2026 já são adicionados automaticamente no seu calendário. Você pode adicionar recessos e feriados locais nas configurações a qualquer momento.
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Início do semestre</label>
-                  <input type="date"
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Fim do semestre</label>
-                  <input type="date"
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
-                </div>
-              </div>
-              <div className="bg-lexiona-50 rounded-xl p-4 text-sm text-lexiona-700">
-                💡 <strong>Dica:</strong> Cada disciplina terá seu próprio período letivo. As datas que você configura aqui servirão de sugestão inicial.
-              </div>
-            </div>
-          )}
-
-          {/* Passo 3 */}
-          {passo === 3 && (
-            <div className="space-y-5">
-              <h2 className="text-xl font-display font-semibold text-lexiona-900">Primeira disciplina</h2>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Nome da disciplina *</label>
-                  <input type="text" value={step3.nome}
-                    onChange={e => setStep3({ ...step3, nome: e.target.value })}
-                    placeholder="ex: Matemática, História, Algoritmos..."
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Turma/Turno</label>
-                  <input type="text" value={step3.turma}
-                    onChange={e => setStep3({ ...step3, turma: e.target.value })}
-                    placeholder="ex: 9°A — Tarde"
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Nível *</label>
-                  <select value={step3.nivel}
-                    onChange={e => setStep3({ ...step3, nivel: e.target.value })}
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm">
-                    {NIVEIS.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Início das aulas *</label>
-                  <input type="date" value={step3.periodo_inicio}
-                    onChange={e => setStep3({ ...step3, periodo_inicio: e.target.value })}
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Fim das aulas *</label>
-                  <input type="date" value={step3.periodo_fim}
-                    onChange={e => setStep3({ ...step3, periodo_fim: e.target.value })}
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Metodologia</label>
-                  <select value={step3.metodologia}
-                    onChange={e => setStep3({ ...step3, metodologia: e.target.value })}
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm">
-                    {METODOLOGIAS.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              </div>
-
+            <>
               <div>
-                <label className="block text-sm font-medium text-lexiona-700 mb-2">Dias de aula *</label>
-                <div className="flex gap-2 flex-wrap">
-                  {DIAS_SEMANA.map(d => (
-                    <button key={d.value} type="button" onClick={() => toggleDia(d.value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border-2 ${
-                        step3.dias_semana.includes(d.value)
-                          ? 'border-lexiona-500 bg-lexiona-600 text-white'
-                          : 'border-lexiona-100 text-lexiona-600 hover:border-lexiona-300'
-                      }`}>
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
+                <h1 className="font-display text-2xl font-bold text-lexiona-900">Período letivo</h1>
+                <p className="text-lexiona-500 mt-1">
+                  Quando começa e termina o seu ano ou semestre?
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Horário início</label>
-                  <input type="time" value={step3.horario_inicio}
-                    onChange={e => setStep3({ ...step3, horario_inicio: e.target.value })}
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
+              {/* Toggle sem período fixo */}
+              <button
+                onClick={() => setSemPeriodoFixo(v => !v)}
+                className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl border-2 transition-all ${
+                  semPeriodoFixo
+                    ? 'bg-lexiona-600 border-lexiona-600 text-white'
+                    : 'bg-white border-lexiona-200 text-lexiona-700 hover:border-lexiona-400'
+                }`}
+              >
+                <div className="text-left">
+                  <p className="font-semibold text-sm">Não tenho período letivo fixo</p>
+                  <p className={`text-xs mt-0.5 ${semPeriodoFixo ? 'text-lexiona-200' : 'text-lexiona-400'}`}>
+                    Aulas particulares, cursos livres, horários variáveis
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-lexiona-700 mb-1">Horário fim</label>
-                  <input type="time" value={step3.horario_fim}
-                    onChange={e => setStep3({ ...step3, horario_fim: e.target.value })}
-                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lexiona-400 text-sm" />
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ml-4 ${
+                  semPeriodoFixo ? 'bg-white border-white' : 'border-lexiona-300'
+                }`}>
+                  {semPeriodoFixo && <Check size={12} className="text-lexiona-600" />}
                 </div>
-              </div>
-            </div>
+              </button>
+
+              {!semPeriodoFixo && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-lexiona-800">Início</label>
+                      <input
+                        type="date"
+                        value={periodoInicio}
+                        onChange={e => setPeriodoInicio(e.target.value)}
+                        className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-lexiona-800">Fim</label>
+                      <input
+                        type="date"
+                        value={periodoFim}
+                        onChange={e => setPeriodoFim(e.target.value)}
+                        className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-lexiona-400">
+                    Os feriados nacionais de 2026 já foram pré-carregados. Você pode ajustá-los depois.
+                  </p>
+                </div>
+              )}
+
+              {semPeriodoFixo && (
+                <div className="bg-lexiona-50 border border-lexiona-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-lexiona-600 leading-relaxed">
+                    Tudo bem! Você vai adicionar suas aulas manualmente no calendário, sem precisar de datas fixas. Você pode definir um período depois nas configurações de cada disciplina.
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Botões */}
-          <div className="flex gap-3 mt-8">
+          {/* ── PASSO 3 ─────────────────────────────── */}
+          {passo === 3 && (
+            <>
+              <div>
+                <h1 className="font-display text-2xl font-bold text-lexiona-900">Primeira disciplina</h1>
+                <p className="text-lexiona-500 mt-1">
+                  Você pode adicionar mais depois. Comece com a mais importante.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Nome */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-lexiona-800">Nome da disciplina *</label>
+                  <input
+                    value={nomeDisciplina}
+                    onChange={e => setNomeDisciplina(e.target.value)}
+                    placeholder="Ex: Matemática, Biologia, Programação Web..."
+                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                  />
+                </div>
+
+                {/* Turma e Turno — separados */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-lexiona-800">Turma</label>
+                    <input
+                      value={turma}
+                      onChange={e => setTurma(e.target.value)}
+                      placeholder="Ex: 9°A, Turma B..."
+                      className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-lexiona-800">Nível</label>
+                    <select
+                      value={nivel}
+                      onChange={e => setNivel(e.target.value)}
+                      className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                    >
+                      {NIVEIS.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Turno */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-lexiona-800">Turno *</label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {TURNOS.map(t => (
+                      <button
+                        key={t.value}
+                        onClick={() => {
+                          setTurno(t.value)
+                          if (t.value === 'particular') setHorarioIrregular(true)
+                        }}
+                        className={`px-3 py-2.5 rounded-xl text-sm border transition-all text-left ${
+                          turno === t.value
+                            ? 'bg-lexiona-600 text-white border-lexiona-600'
+                            : 'bg-white text-lexiona-700 border-lexiona-200 hover:border-lexiona-400'
+                        }`}
+                      >
+                        <div className="font-medium">{t.label}</div>
+                        <div className={`text-xs mt-0.5 ${turno === t.value ? 'text-lexiona-200' : 'text-lexiona-400'}`}>{t.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Toggle horário variável (para turnos não-particulares) */}
+                {turno && turno !== 'particular' && (
+                  <button
+                    onClick={() => setHorarioIrregular(v => !v)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${
+                      horarioIrregular
+                        ? 'bg-lexiona-50 border-lexiona-300 text-lexiona-800'
+                        : 'bg-white border-lexiona-200 text-lexiona-600 hover:border-lexiona-300'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <p className="text-sm font-medium">Horário variável / Aulas particulares</p>
+                      <p className="text-xs text-lexiona-400 mt-0.5">Sem dias e horários fixos definidos</p>
+                    </div>
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ml-4 ${
+                      horarioIrregular ? 'bg-lexiona-600 border-lexiona-600' : 'border-lexiona-300'
+                    }`}>
+                      {horarioIrregular && <Check size={12} className="text-white" />}
+                    </div>
+                  </button>
+                )}
+
+                {/* Carga horária e metodologia */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-lexiona-800">Duração da aula (min)</label>
+                    <input
+                      type="number"
+                      value={cargaHoraria}
+                      onChange={e => setCargaHoraria(e.target.value)}
+                      min="30" max="240" step="5"
+                      className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-lexiona-800">Metodologia</label>
+                    <select
+                      value={metodologia}
+                      onChange={e => setMetodologia(e.target.value)}
+                      className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                    >
+                      {METODOLOGIAS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Componente BNCC (opcional) */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-lexiona-800">
+                    Componente BNCC <span className="text-lexiona-400 font-normal">(opcional)</span>
+                  </label>
+                  <input
+                    value={bncc}
+                    onChange={e => setBncc(e.target.value)}
+                    placeholder="Ex: Matemática, Língua Portuguesa, Ciências..."
+                    className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                  />
+                  <p className="text-xs text-lexiona-400">A IA usará isso para contextualizar as sugestões na BNCC.</p>
+                </div>
+
+                {/* Dias e horários — apenas no modo periódico */}
+                {!modoIrregularAtivo && !semPeriodoFixo && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-lexiona-800">Dias de aula</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {DIAS_SEMANA.map((d, i) => (
+                          <button
+                            key={i}
+                            onClick={() => toggleDia(i)}
+                            className={`w-12 h-12 rounded-xl text-sm font-medium border transition-all ${
+                              diasSemana.includes(i)
+                                ? 'bg-lexiona-600 text-white border-lexiona-600'
+                                : 'bg-white text-lexiona-600 border-lexiona-200 hover:border-lexiona-400'
+                            }`}
+                          >
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-lexiona-800">Início das aulas</label>
+                        <input
+                          type="time"
+                          value={horarioInicio}
+                          onChange={e => setHorarioInicio(e.target.value)}
+                          className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                          style={{ colorScheme: 'light' }}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-lexiona-800">Fim das aulas</label>
+                        <input
+                          type="time"
+                          value={horarioFim}
+                          onChange={e => setHorarioFim(e.target.value)}
+                          className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white"
+                          style={{ colorScheme: 'light' }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {modoIrregularAtivo && (
+                  <div className="bg-lexiona-50 border border-lexiona-100 rounded-xl px-4 py-3">
+                    <p className="text-xs text-lexiona-600 leading-relaxed">
+                      Neste modo, você adiciona as aulas manualmente no calendário conforme elas acontecem. Sem horários fixos nem geração automática de datas.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── NAVEGAÇÃO ─────────────────────────────── */}
+          <div className="flex gap-3 pt-2">
             {passo > 1 && (
-              <button type="button" onClick={() => setPasso(p => p - 1)}
-                className="flex-1 py-3 rounded-xl border border-lexiona-200 text-lexiona-700 font-medium hover:bg-lexiona-50 transition">
-                Voltar
+              <button
+                onClick={() => setPasso(p => p - 1)}
+                disabled={loading}
+                className="flex items-center gap-2 px-6 py-3 border border-lexiona-200 text-lexiona-700 rounded-xl font-medium hover:bg-lexiona-50 transition disabled:opacity-60"
+              >
+                <ChevronLeft size={16} /> Voltar
               </button>
             )}
-            <button type="button" onClick={avancar} disabled={loading}
-              className="flex-1 bg-lexiona-600 hover:bg-lexiona-700 text-white font-medium py-3 rounded-xl transition-all disabled:opacity-60 shadow-sm">
-              {loading
-                ? 'Salvando...'
-                : passo === 3
-                ? '🎉 Concluir configuração'
-                : 'Próximo passo →'}
+            <button
+              onClick={handleProximo}
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-2 bg-lexiona-600 hover:bg-lexiona-700 text-white font-semibold py-3 rounded-xl transition disabled:opacity-60"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  {passo === 3 ? 'Concluir configuração' : 'Próximo passo'}
+                  {passo < 3 && <ChevronRight size={16} />}
+                </>
+              )}
             </button>
           </div>
+
         </div>
       </div>
     </div>

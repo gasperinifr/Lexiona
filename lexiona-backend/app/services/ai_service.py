@@ -1,15 +1,66 @@
 import json
-from groq import AsyncGroq
+import logging
+from groq import AsyncGroq, RateLimitError
+from fastapi import HTTPException
 from app.config import settings
+
+logger = logging.getLogger("lexiona.ai")
 
 client = AsyncGroq(api_key=settings.groq_api_key)
 MODEL = "llama-3.3-70b-versatile"
 WHISPER_MODEL = "whisper-large-v3"
 
 
+def _handle_groq_error(e: Exception, contexto: str = "") -> None:
+    """Converte erros do Groq em HTTPExceptions amigáveis."""
+    err_str = str(e).lower()
+    logger.error(f"Groq erro [{contexto}]: {e}")
+
+    if isinstance(e, RateLimitError) or "rate" in err_str or "429" in err_str:
+        raise HTTPException(
+            status_code=429,
+            detail="O Lexiona está processando muitas requisições agora. Aguarde alguns minutos e tente novamente.",
+        )
+    if "context_length" in err_str or "token" in err_str and "limit" in err_str:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "O conteúdo fornecido é extenso demais para processar de uma vez. "
+                "Tente dividir o texto em partes menores (ex: por unidade temática) e envie separadamente."
+            ),
+        )
+    if "503" in err_str or "unavailable" in err_str or "connection" in err_str:
+        raise HTTPException(
+            status_code=503,
+            detail="O serviço de IA está temporariamente indisponível. Tente novamente em alguns minutos.",
+        )
+    if "authentication" in err_str or "401" in err_str or "api_key" in err_str:
+        raise HTTPException(
+            status_code=503,
+            detail="Serviço de IA com problema de configuração. Entre em contato com o suporte.",
+        )
+
+    raise HTTPException(
+        status_code=500,
+        detail=(
+            f"Falha no serviço de IA{' ao ' + contexto if contexto else ''}. "
+            "Tente novamente. Se o problema persistir, use a opção de texto digitado."
+        ),
+    )
+
+
+def _limpar_json(texto: str) -> str:
+    """Remove markdown code fences do JSON retornado pelo modelo."""
+    if "```json" in texto:
+        texto = texto.split("```json")[1].split("```")[0]
+    elif "```" in texto:
+        texto = texto.split("```")[1].split("```")[0]
+    return texto.strip()
+
+
 async def processar_texto_ementa(texto: str) -> dict:
     """Extrai estrutura pedagógica de texto livre."""
-    prompt = f"""Você é um assistente pedagógico especializado em planejamento docente.
+    prompt = f"""Você é um assistente pedagógico especializado em planejamento docente brasileiro.
 Analise o texto abaixo e extraia as informações pedagógicas estruturadas.
 
 TEXTO:
@@ -34,22 +85,18 @@ Retorne APENAS um JSON válido com esta estrutura exata:
   "observacoes": "outras informações relevantes ou null"
 }}"""
 
-    response = await client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-        max_tokens=2000,
-    )
-
-    texto_resposta = response.choices[0].message.content.strip()
-
-    # Limpar markdown se presente
-    if "```json" in texto_resposta:
-        texto_resposta = texto_resposta.split("```json")[1].split("```")[0].strip()
-    elif "```" in texto_resposta:
-        texto_resposta = texto_resposta.split("```")[1].split("```")[0].strip()
-
-    return json.loads(texto_resposta)
+    try:
+        response = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=2000,
+        )
+        return json.loads(_limpar_json(response.choices[0].message.content))
+    except HTTPException:
+        raise
+    except Exception as e:
+        _handle_groq_error(e, "processar ementa")
 
 
 async def gerar_plano_ensino(disciplina: dict, dados_confirmados: dict, aulas: list) -> list:
@@ -57,9 +104,16 @@ async def gerar_plano_ensino(disciplina: dict, dados_confirmados: dict, aulas: l
     total_aulas = len(aulas)
     metodologia = disciplina.get("metodologia", "Tradicional")
     nivel = disciplina.get("nivel", "medio")
+    bncc = disciplina.get("bncc_componente", "")
 
     unidades = dados_confirmados.get("unidades_tematicas", [])
     objetivos = dados_confirmados.get("objetivos_gerais", [])
+
+    bncc_contexto = (
+        f"\nCOMPONENTE CURRICULAR BNCC: {bncc}\n"
+        "Quando relevante, faça referência às competências e habilidades da BNCC para este componente."
+        if bncc else ""
+    )
 
     prompt = f"""Você é um especialista em planejamento pedagógico para docentes brasileiros.
 
@@ -68,11 +122,11 @@ NÍVEL: {nivel}
 METODOLOGIA: {metodologia}
 TOTAL DE AULAS: {total_aulas}
 OBJETIVOS GERAIS: {json.dumps(objetivos, ensure_ascii=False)}
-UNIDADES TEMÁTICAS: {json.dumps(unidades, ensure_ascii=False)}
+UNIDADES TEMÁTICAS: {json.dumps(unidades, ensure_ascii=False)}{bncc_contexto}
 
 Crie um plano de ensino completo distribuindo os conteúdos nas {total_aulas} aulas de forma progressiva e equilibrada.
 
-Retorne APENAS um array JSON com exatamente {total_aulas} objetos, um por aula, com esta estrutura:
+Retorne APENAS um array JSON com exatamente {total_aulas} objetos, um por aula:
 [
   {{
     "tema": "título conciso da aula",
@@ -85,33 +139,29 @@ Retorne APENAS um array JSON com exatamente {total_aulas} objetos, um por aula, 
 
 Respeite a progressão lógica do conhecimento. Use linguagem clara e prática para o professor."""
 
-    response = await client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.4,
-        max_tokens=4000,
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+            max_tokens=4000,
+        )
+        plano = json.loads(_limpar_json(response.choices[0].message.content))
 
-    texto_resposta = response.choices[0].message.content.strip()
+        while len(plano) < total_aulas:
+            plano.append({
+                "tema": f"Aula {len(plano) + 1} — Revisão e Aprofundamento",
+                "objetivos": "Consolidar os conteúdos estudados",
+                "conteudos": "Revisão dos tópicos principais do período",
+                "recursos": "Material de revisão",
+                "metodologia_aula": "Discussão em grupo",
+            })
+        return plano[:total_aulas]
 
-    if "```json" in texto_resposta:
-        texto_resposta = texto_resposta.split("```json")[1].split("```")[0].strip()
-    elif "```" in texto_resposta:
-        texto_resposta = texto_resposta.split("```")[1].split("```")[0].strip()
-
-    plano = json.loads(texto_resposta)
-
-    # Garantir que temos o número correto de aulas
-    while len(plano) < total_aulas:
-        plano.append({
-            "tema": f"Aula {len(plano) + 1} — Revisão e Aprofundamento",
-            "objetivos": "Consolidar os conteúdos estudados",
-            "conteudos": "Revisão dos tópicos principais do período",
-            "recursos": "Material de revisão",
-            "metodologia_aula": "Discussão em grupo",
-        })
-
-    return plano[:total_aulas]
+    except HTTPException:
+        raise
+    except Exception as e:
+        _handle_groq_error(e, "gerar plano de ensino")
 
 
 async def chat_ajuste(mensagem: str, historico: list, disciplina: dict, aulas: list) -> str:
@@ -121,35 +171,40 @@ async def chat_ajuste(mensagem: str, historico: list, disciplina: dict, aulas: l
         for i, a in enumerate(aulas[:30])
     ])
 
+    bncc_info = f"\nComponente BNCC: {disciplina.get('bncc_componente')}" if disciplina.get("bncc_componente") else ""
+    turno_info = f"\nTurno: {disciplina.get('turno', '')}" if disciplina.get("turno") else ""
+
     system_prompt = f"""Você é um assistente pedagógico do Lexiona, auxiliando o professor a ajustar seu plano de ensino.
 
 CONTEXTO DA DISCIPLINA:
 - Nome: {disciplina['nome']}
 - Nível: {disciplina.get('nivel', '')}
-- Metodologia: {disciplina.get('metodologia', '')}
+- Turma: {disciplina.get('turma', '')}{turno_info}
+- Metodologia: {disciplina.get('metodologia', '')}{bncc_info}
 
 PLANO ATUAL (resumo):
 {aulas_resumo}
 
-Responda de forma clara, direta e amigável. Quando sugerir mudanças específicas no plano, descreva exatamente o que deve ser alterado.
+Responda de forma clara, direta e amigável. Quando sugerir mudanças específicas, descreva exatamente o que alterar.
 Sempre responda em português brasileiro."""
 
     messages = [{"role": "system", "content": system_prompt}]
-
-    # Adicionar histórico
-    for msg in historico[-10:]:  # máximo 10 mensagens de contexto
+    for msg in historico[-10:]:
         messages.append({"role": msg["role"], "content": msg["content"]})
-
     messages.append({"role": "user", "content": mensagem})
 
-    response = await client.chat.completions.create(
-        model=MODEL,
-        messages=messages,
-        temperature=0.5,
-        max_tokens=800,
-    )
-
-    return response.choices[0].message.content.strip()
+    try:
+        response = await client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            temperature=0.5,
+            max_tokens=800,
+        )
+        return response.choices[0].message.content.strip()
+    except HTTPException:
+        raise
+    except Exception as e:
+        _handle_groq_error(e, "chat de ajuste")
 
 
 async def gerar_ideias_aula(
@@ -175,47 +230,124 @@ async def gerar_ideias_aula(
         if aula_atual else "Aula ainda sem plano definido"
     )
 
+    bncc_contexto = (
+        f"\nComponente BNCC: {disciplina['bncc_componente']} — inclua referências às habilidades BNCC quando relevante."
+        if disciplina.get("bncc_componente") else ""
+    )
+
     prompt = f"""Você é um especialista em didática e planejamento de aulas para professores brasileiros.
 
 DISCIPLINA: {disciplina['nome']}
 NÍVEL: {disciplina.get('nivel', 'medio')}
-METODOLOGIA PRINCIPAL: {disciplina.get('metodologia', 'Tradicional')}
+TURNO: {disciplina.get('turno', 'não informado')}
+METODOLOGIA PRINCIPAL: {disciplina.get('metodologia', 'Tradicional')}{bncc_contexto}
 DATA DA AULA: {data}
-SITUAÇÃO ATUAL DA AULA: {aula_atual_info}
+SITUAÇÃO ATUAL: {aula_atual_info}
 
-AULAS ANTERIORES (contexto):
+AULAS ANTERIORES:
 {contexto_antes}
 
-AULAS POSTERIORES (contexto):
+AULAS POSTERIORES:
 {contexto_depois}
 
-Gere 4 ideias criativas e pedagogicamente sólidas para a aula desta data, considerando a progressão do conteúdo e a metodologia da disciplina.
+Gere 4 ideias criativas e pedagogicamente sólidas para esta aula, considerando a progressão do conteúdo.
 
 Retorne APENAS um array JSON com 4 objetos:
 [
   {{
     "titulo": "título criativo da ideia de aula",
-    "descricao": "descrição da ideia em 2-3 frases, explicando como seria conduzida",
-    "metodologia_sugerida": "metodologia específica para esta ideia",
-    "recursos": "materiais e recursos necessários",
-    "diferencial": "por que esta abordagem é eficaz para este momento da disciplina"
+    "descricao": "descrição em 2-3 frases de como seria conduzida",
+    "metodologia_sugerida": "metodologia específica",
+    "recursos": "materiais necessários",
+    "diferencial": "por que esta abordagem é eficaz para este momento"
   }}
 ]
 
-As ideias devem ser diversas entre si em abordagem e metodologia. Foque em atividades práticas e engajantes."""
+As ideias devem ser diversas entre si. Foque em atividades práticas e engajantes."""
 
-    response = await client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=1500,
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1500,
+        )
+        return json.loads(_limpar_json(response.choices[0].message.content))
+    except HTTPException:
+        raise
+    except Exception as e:
+        _handle_groq_error(e, "gerar ideias de aula")
 
-    texto_resposta = response.choices[0].message.content.strip()
 
-    if "```json" in texto_resposta:
-        texto_resposta = texto_resposta.split("```json")[1].split("```")[0].strip()
-    elif "```" in texto_resposta:
-        texto_resposta = texto_resposta.split("```")[1].split("```")[0].strip()
+async def replanejamento_automatico(
+    disciplina: dict,
+    aula_cancelada: dict,
+    proximas_aulas: list,
+    motivo: str = "Aula cancelada",
+) -> list:
+    """
+    RF19 — Redistribui o conteúdo de uma aula cancelada nas próximas aulas pendentes.
+    Retorna lista de updates {aula_id, tema, objetivos, conteudos, recursos, metodologia_aula}.
+    """
+    if not proximas_aulas:
+        return []
 
-    return json.loads(texto_resposta)
+    conteudo_cancelado = {
+        "tema": aula_cancelada.get("tema", "Sem tema"),
+        "objetivos": aula_cancelada.get("objetivos", ""),
+        "conteudos": aula_cancelada.get("conteudos", ""),
+    }
+
+    proximas_resumo = json.dumps([
+        {
+            "id": a["id"],
+            "data": a["data"],
+            "tema": a.get("tema", "Pendente"),
+            "conteudos": a.get("conteudos", ""),
+            "numero_aula": a.get("numero_aula", 0),
+        }
+        for a in proximas_aulas[:5]
+    ], ensure_ascii=False)
+
+    prompt = f"""Você é um especialista em planejamento pedagógico.
+
+Uma aula foi cancelada e o conteúdo precisa ser redistribuído.
+
+DISCIPLINA: {disciplina['nome']}
+MOTIVO DO CANCELAMENTO: {motivo}
+
+CONTEÚDO CANCELADO:
+- Tema: {conteudo_cancelado['tema']}
+- Objetivos: {conteudo_cancelado['objetivos']}
+- Conteúdos: {conteudo_cancelado['conteudos']}
+
+PRÓXIMAS AULAS DISPONÍVEIS:
+{proximas_resumo}
+
+Redistribua o conteúdo cancelado de forma inteligente nas próximas aulas, integrando com o que já está planejado.
+Não force tudo na próxima aula — distribua de forma equilibrada.
+
+Retorne APENAS um array JSON com os updates necessários (apenas as aulas que precisam mudar):
+[
+  {{
+    "aula_id": "uuid da aula",
+    "tema": "novo tema ou tema atual atualizado",
+    "objetivos": "objetivos atualizados",
+    "conteudos": "conteúdos atualizados incluindo o conteúdo redistribuído",
+    "recursos": "recursos necessários",
+    "metodologia_aula": "estratégia para a aula"
+  }}
+]"""
+
+    try:
+        response = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=2000,
+        )
+        return json.loads(_limpar_json(response.choices[0].message.content))
+    except HTTPException:
+        raise
+    except Exception as e:
+        _handle_groq_error(e, "replanejamento automático")

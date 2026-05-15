@@ -4,31 +4,29 @@ import { api, toastErro } from '../services/api'
 import toast from 'react-hot-toast'
 import { Leaf, Eye, EyeOff } from 'lucide-react'
 
-export default function Login() {
+export default function Cadastro() {
   const navigate = useNavigate()
+  const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  async function handleLogin(e) {
+  async function handleCadastro(e) {
     e.preventDefault()
-    if (!email || !senha) { toast.error('Preencha e-mail e senha.'); return }
+    if (!nome.trim()) { toast.error('Informe seu nome.'); return }
+    if (!email) { toast.error('Informe seu e-mail.'); return }
+    if (senha.length < 6) { toast.error('A senha deve ter pelo menos 6 caracteres.'); return }
+
     setLoading(true)
     try {
-      const res = await api.post('/auth/login', { email, senha })
+      const res = await api.post('/auth/cadastro', { nome: nome.trim(), email, senha })
       localStorage.setItem('lexiona_token', res.data.access_token)
       localStorage.setItem('lexiona_professor', JSON.stringify(res.data.professor))
-      toast.success(`Bem-vindo de volta, ${res.data.professor.nome?.split(' ')[0]}!`)
-
-      // Verificar se professor já fez onboarding
-      if (!res.data.professor.onboarding_concluido) {
-        navigate('/onboarding')
-      } else {
-        navigate('/app')
-      }
+      toast.success('Conta criada! Vamos configurar seu espaço.')
+      navigate('/onboarding')
     } catch (err) {
-      toastErro(err, 'E-mail ou senha incorretos.')
+      toastErro(err, 'Erro ao criar conta. Verifique os dados e tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -48,11 +46,23 @@ export default function Login() {
       <div className="w-full max-w-sm bg-white rounded-2xl border border-lexiona-100 shadow-card p-8 space-y-6">
 
         <div>
-          <h1 className="font-display text-2xl font-bold text-lexiona-900">Entrar</h1>
-          <p className="text-sm text-lexiona-400 mt-1">Acesse seu espaço pedagógico</p>
+          <h1 className="font-display text-2xl font-bold text-lexiona-900">Criar conta</h1>
+          <p className="text-sm text-lexiona-400 mt-1">Gratuito, sem cartão de crédito</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleCadastro} className="space-y-4">
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-lexiona-800">Nome completo</label>
+            <input
+              type="text"
+              value={nome}
+              onChange={e => setNome(e.target.value)}
+              placeholder="Seu nome"
+              autoComplete="name"
+              className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white transition"
+            />
+          </div>
 
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-lexiona-800">E-mail</label>
@@ -73,8 +83,8 @@ export default function Login() {
                 type={mostrarSenha ? 'text' : 'password'}
                 value={senha}
                 onChange={e => setSenha(e.target.value)}
-                placeholder="Sua senha"
-                autoComplete="current-password"
+                placeholder="Mínimo 6 caracteres"
+                autoComplete="new-password"
                 className="w-full px-4 py-3 pr-12 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white transition"
               />
               <button
@@ -94,15 +104,15 @@ export default function Login() {
           >
             {loading
               ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              : 'Entrar'}
+              : 'Criar conta grátis'}
           </button>
 
         </form>
 
         <p className="text-center text-sm text-lexiona-500">
-          Não tem conta?{' '}
-          <Link to="/cadastro" className="text-lexiona-600 font-semibold hover:text-lexiona-800 underline underline-offset-2">
-            Criar conta grátis
+          Já tem conta?{' '}
+          <Link to="/login" className="text-lexiona-600 font-semibold hover:text-lexiona-800 underline underline-offset-2">
+            Entrar
           </Link>
         </p>
 
