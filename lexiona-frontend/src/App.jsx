@@ -1,5 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 
 import Layout from './components/Layout'
@@ -37,75 +36,44 @@ function LoadingSpinner() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <ErrorBoundary>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              fontFamily: 'DM Sans, system-ui, sans-serif',
-              fontSize: '14px',
-              borderRadius: '12px',
-              padding: '12px 16px',
-              boxShadow: '0 4px 16px rgba(15,48,35,0.12)',
-            },
-            success: {
-              style: {
-                background: '#f0faf5',
-                color: '#0f3023',
-                border: '1px solid #aee4cc',
-              },
-              iconTheme: { primary: '#2e9168', secondary: '#f0faf5' },
-            },
-            error: {
-              style: {
-                background: '#fff5f5',
-                color: '#7f1d1d',
-                border: '1px solid #fecaca',
-              },
-            },
-          }}
-        />
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingSpinner />}>
+        <Routes>
+          {/* Público */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/cadastro" element={<Cadastro />} />
 
-        <Suspense fallback={<LoadingSpinner />}>
-          <Routes>
-            {/* Público */}
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/cadastro" element={<Cadastro />} />
+          {/* Onboarding protegido (sem layout) */}
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            }
+          />
 
-            {/* Onboarding protegido (sem layout) */}
-            <Route
-              path="/onboarding"
-              element={
-                <ProtectedRoute>
-                  <Onboarding />
-                </ProtectedRoute>
-              }
-            />
+          {/* App protegido com layout */}
+          <Route
+            path="/app"
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="calendario" element={<Calendario />} />
+            <Route path="disciplinas" element={<Disciplinas />} />
+            <Route path="relatorios" element={<Relatorios />} />
+            <Route path="configuracoes" element={<Configuracoes />} />
+          </Route>
 
-            {/* App protegido com layout */}
-            <Route
-              path="/app"
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Dashboard />} />
-              <Route path="calendario" element={<Calendario />} />
-              <Route path="disciplinas" element={<Disciplinas />} />
-              <Route path="relatorios" element={<Relatorios />} />
-              <Route path="configuracoes" element={<Configuracoes />} />
-            </Route>
-
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </ErrorBoundary>
-    </BrowserRouter>
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   )
 }

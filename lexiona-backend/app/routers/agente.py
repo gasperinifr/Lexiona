@@ -25,11 +25,12 @@ _jobs: dict = {}
 async def processar_texto(dados: InsumoTextoRequest, current_user: dict = Depends(get_current_user)):
     conteudo = await ai_service.processar_texto_ementa(dados.texto)
 
-    insumo = supabase_admin.table("insumos").insert({
+    insumo = supabase_admin.table("insumos_ia").insert({
         "disciplina_id": dados.disciplina_id,
         "tipo": "texto",
-        "texto_original": dados.texto,
+        "conteudo_bruto": dados.texto,
         "conteudo_estruturado": conteudo,
+        "status": "concluido",
     }).execute()
 
     return {
@@ -69,11 +70,12 @@ async def processar_arquivo(
         )
 
     conteudo = await ai_service.processar_texto_ementa(texto)
-    insumo = supabase_admin.table("insumos").insert({
+    insumo = supabase_admin.table("insumos_ia").insert({
         "disciplina_id": disciplina_id,
-        "tipo": "arquivo",
-        "texto_original": texto[:5000],
+        "tipo": "pdf" if ext == "pdf" else "docx",
+        "conteudo_bruto": texto[:5000],
         "conteudo_estruturado": conteudo,
+        "status": "concluido",
     }).execute()
 
     return {
@@ -105,11 +107,12 @@ async def processar_audio(
         )
 
     conteudo = await ai_service.processar_texto_ementa(texto)
-    insumo = supabase_admin.table("insumos").insert({
+    insumo = supabase_admin.table("insumos_ia").insert({
         "disciplina_id": disciplina_id,
         "tipo": "audio",
-        "texto_original": texto,
+        "conteudo_bruto": texto,
         "conteudo_estruturado": conteudo,
+        "status": "concluido",
     }).execute()
 
     return {

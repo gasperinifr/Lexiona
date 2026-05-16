@@ -69,9 +69,6 @@ export default function Onboarding() {
         const modFinal = modalidades.includes('Outros') && modalidadeOutro
           ? [...modalidades.filter(m => m !== 'Outros'), modalidadeOutro]
           : modalidades
-        await api.post('/auth/perfil', {}, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('lexiona_token')}` },
-        })
         await api.put('/auth/perfil', {
           modalidades: modFinal,
           nome: professor.nome,
