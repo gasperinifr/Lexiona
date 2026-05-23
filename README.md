@@ -6,7 +6,7 @@ Plataforma web de planejamento pedagógico inteligente para docentes. Organiza d
 
 ## Demo
 
-Acesse: em breve
+Acesse: https://lexionabr.vercel.app/
 
 ---
 
