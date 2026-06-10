@@ -4,6 +4,7 @@ Requer: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 """
 
 import logging
+import importlib.util
 from typing import Optional, List
 from datetime import datetime, timezone
 from fastapi import HTTPException
@@ -26,6 +27,27 @@ TURNO_COLOR_ID = {
 
 def _google_disponivel() -> bool:
     return bool(settings.google_client_id and settings.google_client_secret)
+
+
+def _modulo_instalado(nome: str) -> bool:
+    try:
+        return importlib.util.find_spec(nome) is not None
+    except ModuleNotFoundError:
+        return False
+
+
+def diagnostico_integracao() -> dict:
+    """Retorna o estado de configuracao e dependencias da integracao Google."""
+    configurado = _google_disponivel()
+    oauthlib_ok = _modulo_instalado("google_auth_oauthlib")
+    api_ok = _modulo_instalado("googleapiclient")
+    credentials_ok = _modulo_instalado("google.oauth2.credentials")
+
+    return {
+        "configurado": configurado,
+        "bibliotecas_instaladas": oauthlib_ok and api_ok and credentials_ok,
+        "pronto": configurado and oauthlib_ok and api_ok and credentials_ok,
+    }
 
 
 def gerar_url_autorizacao(professor_id: str) -> str:
@@ -62,7 +84,7 @@ def gerar_url_autorizacao(professor_id: str) -> str:
     except ImportError:
         raise HTTPException(
             status_code=503,
-            detail="Biblioteca google-auth não instalada no servidor.",
+            detail="Biblioteca google-auth-oauthlib nao instalada no servidor.",
         )
 
 

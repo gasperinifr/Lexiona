@@ -1,5 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from app.models.schemas import DisciplinaCreate, DisciplinaUpdate, FeriadoCreate
+from app.models.schemas import (
+    DisciplinaCreate,
+    DisciplinaUpdate,
+    FeriadoCreate,
+    GerarDatasAulasRequest,
+)
 from app.database import supabase_admin
 from app.dependencies import get_current_user
 from app.services.calendar_service import gerar_datas_aula, deve_gerar_datas
@@ -25,6 +30,16 @@ async def listar_disciplinas(current_user: dict = Depends(get_current_user)):
     data = response.data or []
     await cache_service.set(cache_key, data, ttl=1800)
     return data
+
+
+def _buscar_disciplina_do_professor(disciplina_id: str, professor_id: str, select: str = "*") -> dict:
+    response = supabase_admin.table("disciplinas").select(select).eq(
+        "id", disciplina_id
+    ).eq("professor_id", professor_id).single().execute()
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Disciplina nao encontrada.")
+    return response.data
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -85,15 +100,73 @@ async def criar_disciplina(dados: DisciplinaCreate, current_user: dict = Depends
     return {**disciplina, "total_aulas_geradas": total_aulas}
 
 
+@router.post("/{disciplina_id}/aulas/gerar-datas", status_code=status.HTTP_201_CREATED)
+async def gerar_datas_aulas_futuras(
+    disciplina_id: str,
+    dados: GerarDatasAulasRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    professor_id = current_user["id"]
+    disciplina = _buscar_disciplina_do_professor(disciplina_id, professor_id)
+
+    feriados_resp = supabase_admin.table("feriados").select("data").eq(
+        "professor_id", professor_id
+    ).execute()
+    feriados = [f["data"] for f in (feriados_resp.data or [])]
+
+    datas = gerar_datas_aula(
+        periodo_inicio=dados.periodo_inicio,
+        periodo_fim=dados.periodo_fim,
+        dias_semana=dados.dias_semana,
+        feriados=feriados,
+    )
+
+    existentes_resp = supabase_admin.table("aulas").select("data,numero_aula").eq(
+        "disciplina_id", disciplina_id
+    ).execute()
+    existentes = existentes_resp.data or []
+    datas_existentes = {a["data"] for a in existentes}
+    ultimo_numero = max([a.get("numero_aula") or 0 for a in existentes] or [0])
+
+    novas_datas = [d for d in datas if str(d) not in datas_existentes]
+    aulas_data = [
+        {
+            "disciplina_id": disciplina_id,
+            "data": str(data_aula),
+            "status": "pendente",
+            "numero_aula": ultimo_numero + i + 1,
+        }
+        for i, data_aula in enumerate(novas_datas)
+    ]
+
+    if aulas_data:
+        supabase_admin.table("aulas").insert(aulas_data).execute()
+
+    update_disciplina = {
+        "periodo_inicio": str(dados.periodo_inicio),
+        "periodo_fim": str(dados.periodo_fim),
+        "dias_semana": dados.dias_semana,
+        "horario_inicio": str(dados.horario_inicio) if dados.horario_inicio else disciplina.get("horario_inicio"),
+        "horario_fim": str(dados.horario_fim) if dados.horario_fim else disciplina.get("horario_fim"),
+        "modo_planejamento": "periodico",
+    }
+    supabase_admin.table("disciplinas").update(update_disciplina).eq(
+        "id", disciplina_id
+    ).eq("professor_id", professor_id).execute()
+
+    await cache_service.invalidar_professor(professor_id)
+
+    return {
+        "total_datas_calculadas": len(datas),
+        "total_aulas_criadas": len(aulas_data),
+        "total_ignoradas_por_duplicidade": len(datas) - len(novas_datas),
+    }
+
+
 @router.get("/{disciplina_id}")
 async def get_disciplina(disciplina_id: str, current_user: dict = Depends(get_current_user)):
-    response = supabase_admin.table("disciplinas").select("*").eq(
-        "id", disciplina_id
-    ).eq("professor_id", current_user["id"]).single().execute()
+    return _buscar_disciplina_do_professor(disciplina_id, current_user["id"])
 
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Disciplina não encontrada.")
-    return response.data
 
 
 @router.put("/{disciplina_id}")

@@ -211,10 +211,10 @@ export default function Calendario() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start">
 
         {/* ── CALENDÁRIO ──────────────────────────────── */}
-        <div className="flex-1 bg-white rounded-2xl border border-lexiona-100 shadow-card overflow-hidden">
+        <div className="bg-white rounded-2xl border border-lexiona-100 shadow-card overflow-hidden self-start">
 
           {/* Cabeçalho dos dias */}
           <div className="grid grid-cols-7 border-b border-lexiona-50">
@@ -243,7 +243,7 @@ export default function Calendario() {
                   <div
                     key={idx}
                     onClick={() => dia && setDiaSelecionado(dia === diaSelecionado ? null : dia)}
-                    className={`min-h-[72px] p-2 border-b border-r border-lexiona-50 transition-all cursor-pointer
+                    className={`h-[104px] sm:h-[118px] p-2 border-b border-r border-lexiona-50 transition-all cursor-pointer overflow-hidden
                       ${!dia ? 'bg-lexiona-50/30 pointer-events-none' : 'hover:bg-lexiona-50/60'}
                       ${isSelecionado ? 'bg-lexiona-50 ring-1 ring-inset ring-lexiona-300' : ''}
                     `}
@@ -289,7 +289,7 @@ export default function Calendario() {
         </div>
 
         {/* ── PAINEL LATERAL ──────────────────────────── */}
-        <div className="lg:w-80 space-y-4">
+        <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto pr-1">
 
           {diaSelecionado ? (
             <>

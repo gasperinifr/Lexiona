@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   CheckCircle2, XCircle, Clock, Edit3, Save, X,
   Lightbulb, Sun, Moon, Sunset, Leaf, RotateCcw,
+  Bot,
 } from 'lucide-react'
+import GeradorIdeias from './GeradorIdeias'
+import ChatAgente from './ChatAgente'
 
 const STATUS_ACTIONS = [
   { value: 'planejada', label: 'Planejada', icon: CheckCircle2, cor: 'bg-lexiona-50 hover:bg-lexiona-100 text-lexiona-700 border-lexiona-200' },
@@ -56,9 +59,22 @@ export default function PainelAula({ aula, disciplina, onAtualizar, onMudarStatu
   const [recursos, setRecursos] = useState(aula.recursos || '')
   const [metodologia, setMetodologia] = useState(aula.metodologia_aula || '')
   const [salvando, setSalvando] = useState(false)
+  const [mostrarIdeias, setMostrarIdeias] = useState(false)
+  const [mostrarChat, setMostrarChat] = useState(false)
 
   const turnoConf = TURNO_CONFIG[disciplina?.turno]
   const TurnoIcon = turnoConf?.icon
+
+  useEffect(() => {
+    setTema(aula.tema || '')
+    setObjetivos(aula.objetivos || '')
+    setConteudos(aula.conteudos || '')
+    setRecursos(aula.recursos || '')
+    setMetodologia(aula.metodologia_aula || '')
+    setEditando(false)
+    setMostrarIdeias(false)
+    setMostrarChat(false)
+  }, [aula.id])
 
   async function handleSalvar() {
     setSalvando(true)
@@ -77,6 +93,23 @@ export default function PainelAula({ aula, disciplina, onAtualizar, onMudarStatu
     setRecursos(aula.recursos || '')
     setMetodologia(aula.metodologia_aula || '')
     setEditando(false)
+  }
+
+  async function handleAplicarIdeia(ideia) {
+    const dados = {
+      tema: ideia.titulo || tema,
+      objetivos: objetivos || ideia.diferencial || '',
+      conteudos: ideia.descricao || conteudos,
+      recursos: ideia.recursos || recursos,
+      metodologia_aula: ideia.metodologia_sugerida || metodologia,
+    }
+    setTema(dados.tema)
+    setObjetivos(dados.objetivos)
+    setConteudos(dados.conteudos)
+    setRecursos(dados.recursos)
+    setMetodologia(dados.metodologia_aula)
+    await onAtualizar(dados)
+    setMostrarIdeias(false)
   }
 
   return (
@@ -136,6 +169,49 @@ export default function PainelAula({ aula, disciplina, onAtualizar, onMudarStatu
         <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
           <RotateCcw size={14} className="text-amber-600 animate-spin" />
           <p className="text-xs text-amber-700 font-medium">Redistribuindo conteúdo com IA...</p>
+        </div>
+      )}
+
+      {!editando && (
+        <div className="px-5 py-4 border-b border-lexiona-50 bg-white space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => { setMostrarIdeias(v => !v); setMostrarChat(false) }}
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-semibold transition ${
+                mostrarIdeias
+                  ? 'bg-amber-100 text-amber-800 border-amber-200'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-100'
+              }`}
+            >
+              <Lightbulb size={14} /> Ideias IA
+            </button>
+            <button
+              onClick={() => { setMostrarChat(v => !v); setMostrarIdeias(false) }}
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-semibold transition ${
+                mostrarChat
+                  ? 'bg-lexiona-100 text-lexiona-800 border-lexiona-200'
+                  : 'bg-lexiona-50 hover:bg-lexiona-100 text-lexiona-700 border-lexiona-100'
+              }`}
+            >
+              <Bot size={14} /> Ajustar plano
+            </button>
+          </div>
+
+          {mostrarIdeias && disciplina?.id && (
+            <GeradorIdeias
+              disciplinaId={disciplina.id}
+              data={aula.data}
+              onAplicar={handleAplicarIdeia}
+              onFechar={() => setMostrarIdeias(false)}
+            />
+          )}
+
+          {mostrarChat && disciplina?.id && (
+            <ChatAgente
+              disciplinaId={disciplina.id}
+              onFechar={() => setMostrarChat(false)}
+            />
+          )}
         </div>
       )}
 

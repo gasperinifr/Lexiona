@@ -11,6 +11,64 @@ MODEL = "llama-3.3-70b-versatile"
 WHISPER_MODEL = "whisper-large-v3"
 
 
+# Fallback quick stubs for development to avoid external calls
+if settings.environment == "development":
+    async def processar_texto_ementa(texto: str) -> dict:
+        return {
+            "disciplina_nome": None,
+            "nivel": None,
+            "carga_horaria_horas": None,
+            "metodologia_sugerida": "Tradicional",
+            "objetivos_gerais": [],
+            "unidades_tematicas": [],
+            "avaliacoes_previstas": [],
+            "recursos_mencionados": [],
+            "observacoes": None,
+        }
+
+    async def gerar_plano_ensino(disciplina: dict, dados_confirmados: dict, aulas: list) -> list:
+        plano = []
+        for i in range(len(aulas)):
+            plano.append({
+                "tema": f"Aula {i+1} — Tópico exemplo",
+                "objetivos": "Objetivo exemplo",
+                "conteudos": "Conteúdo exemplo",
+                "recursos": "Nenhum",
+                "metodologia_aula": "Expositivo",
+            })
+        return plano
+
+    async def chat_ajuste(mensagem: str, historico: list, disciplina: dict, aulas: list) -> str:
+        return "Resposta de ajuste (modo dev): entendi suas preferências."
+
+    async def gerar_ideias_aula(disciplina: dict, data: str, aulas_antes: list, aulas_depois: list, aula_atual: dict | None) -> list:
+        return [{
+            "titulo": "Ideia 1",
+            "descricao": "Atividade prática rápida.",
+            "metodologia_sugerida": "Atividade em grupo",
+            "recursos": "Quadro e marcadores",
+            "diferencial": "Engajamento rápido",
+        } for _ in range(4)]
+
+    async def replanejamento_automatico(disciplina: dict, aula_cancelada: dict, proximas_aulas: list, motivo: str = "Aula cancelada") -> list:
+        # Distribui conteúdo simplificadamente entre próximas aulas
+        updates = []
+        for a in proximas_aulas:
+            updates.append({
+                "aula_id": a["id"],
+                "tema": a.get("tema", "Ajuste dev"),
+                "objetivos": a.get("objetivos", "Atualizado"),
+                "conteudos": a.get("conteudos", "Conteúdo redistribuído"),
+                "recursos": "Nenhum",
+                "metodologia_aula": "Atividade prática",
+            })
+        return updates
+
+    # Skip real client init in dev
+    client = None
+else:
+
+
 def _handle_groq_error(e: Exception, contexto: str = "") -> None:
     """Converte erros do Groq em HTTPExceptions amigáveis."""
     err_str = str(e).lower()

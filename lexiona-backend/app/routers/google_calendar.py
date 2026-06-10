@@ -1,32 +1,35 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
+
+from app.config import settings
 from app.database import supabase_admin
 from app.dependencies import get_current_user
-from app.services import google_calendar_service as gcal
 from app.models.schemas import GoogleCalendarSyncRequest
-from app.config import settings
+from app.services import google_calendar_service as gcal
 
 router = APIRouter(prefix="/google-calendar", tags=["Google Calendar"])
 
 
 @router.get("/auth")
 async def iniciar_oauth(current_user: dict = Depends(get_current_user)):
-    """Retorna a URL de autorização do Google para o frontend redirecionar."""
-    if not settings.google_client_id:
+    diagnostico = gcal.diagnostico_integracao()
+    if not diagnostico["configurado"]:
         raise HTTPException(
             status_code=503,
-            detail="Integração com Google Calendar não está configurada neste servidor.",
+            detail="Integracao com Google Calendar nao esta configurada neste servidor.",
         )
+    if not diagnostico["bibliotecas_instaladas"]:
+        raise HTTPException(
+            status_code=503,
+            detail="Bibliotecas do Google Calendar nao instaladas no servidor.",
+        )
+
     url = gcal.gerar_url_autorizacao(current_user["id"])
     return {"auth_url": url}
 
 
 @router.get("/callback")
 async def oauth_callback(code: str, state: str, error: str = None):
-    """
-    Recebe o callback do Google após autorização.
-    state = professor_id
-    """
     if error:
         return RedirectResponse(
             url=f"{settings.frontend_url}/app/configuracoes?google=error&reason={error}"
@@ -35,7 +38,6 @@ async def oauth_callback(code: str, state: str, error: str = None):
     professor_id = state
     tokens = await gcal.trocar_code_por_tokens(code)
 
-    # Salvar tokens no Supabase
     existente = supabase_admin.table("google_calendar_tokens").select("id").eq(
         "professor_id", professor_id
     ).execute()
@@ -55,24 +57,23 @@ async def oauth_callback(code: str, state: str, error: str = None):
     else:
         supabase_admin.table("google_calendar_tokens").insert(token_data).execute()
 
-    return RedirectResponse(
-        url=f"{settings.frontend_url}/app/configuracoes?google=success"
-    )
+    return RedirectResponse(url=f"{settings.frontend_url}/app/configuracoes?google=success")
 
 
 @router.get("/status")
 async def status_conexao(current_user: dict = Depends(get_current_user)):
-    """Verifica se o professor tem Google Calendar conectado."""
+    diagnostico = gcal.diagnostico_integracao()
     resp = supabase_admin.table("google_calendar_tokens").select(
         "sincronizacao_ativa,token_expiry,calendar_id"
     ).eq("professor_id", current_user["id"]).execute()
 
     if not resp.data:
-        return {"conectado": False}
+        return {"conectado": False, **diagnostico}
 
     token = resp.data[0]
     return {
         "conectado": True,
+        **diagnostico,
         "sincronizacao_ativa": token.get("sincronizacao_ativa", True),
         "calendar_id": token.get("calendar_id", "primary"),
     }
@@ -83,10 +84,15 @@ async def sincronizar(
     dados: GoogleCalendarSyncRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Sincroniza aulas planejadas com o Google Calendar."""
     professor_id = current_user["id"]
 
-    # Buscar tokens
+    diagnostico = gcal.diagnostico_integracao()
+    if not diagnostico["pronto"]:
+        raise HTTPException(
+            status_code=503,
+            detail="Google Calendar indisponivel. Verifique configuracao e dependencias do servidor.",
+        )
+
     token_resp = supabase_admin.table("google_calendar_tokens").select("*").eq(
         "professor_id", professor_id
     ).single().execute()
@@ -94,12 +100,11 @@ async def sincronizar(
     if not token_resp.data:
         raise HTTPException(
             status_code=400,
-            detail="Conta Google não conectada. Conecte sua conta Google primeiro nas configurações.",
+            detail="Conta Google nao conectada. Conecte sua conta Google primeiro nas configuracoes.",
         )
 
     token = token_resp.data
 
-    # Buscar disciplinas
     disc_query = supabase_admin.table("disciplinas").select("*").eq(
         "professor_id", professor_id
     ).eq("ativa", True)
@@ -113,13 +118,11 @@ async def sincronizar(
     if not disciplinas_map:
         raise HTTPException(status_code=404, detail="Nenhuma disciplina ativa encontrada.")
 
-    # Buscar aulas para sincronizar
     aulas_resp = supabase_admin.table("aulas").select("*").in_(
         "disciplina_id", list(disciplinas_map.keys())
     ).in_("status", ["planejada", "pendente"]).order("data").execute()
 
     aulas = aulas_resp.data or []
-
     resultado = await gcal.sincronizar_aulas(
         access_token=token["access_token"],
         refresh_token=token["refresh_token"],
@@ -128,7 +131,6 @@ async def sincronizar(
         disciplinas_map=disciplinas_map,
     )
 
-    # Salvar google_event_ids novos
     for aula in aulas:
         if aula.get("_novo_google_event_id"):
             supabase_admin.table("aulas").update({
@@ -143,7 +145,6 @@ async def sincronizar(
 
 @router.post("/disconnect")
 async def desconectar(current_user: dict = Depends(get_current_user)):
-    """Remove a integração com o Google Calendar."""
     supabase_admin.table("google_calendar_tokens").delete().eq(
         "professor_id", current_user["id"]
     ).execute()

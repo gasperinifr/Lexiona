@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { api, toastErro } from '../services/api'
 import toast from 'react-hot-toast'
 import {
-  Plus, BookOpen, Sun, Moon, Sunset, Leaf, Settings2,
-  Trash2, ChevronDown, X, Check, Clock,
+  Plus, BookOpen, Sun, Moon, Sunset, Leaf,
+  Trash2, ChevronDown, X, Check, Clock, CalendarPlus, Sparkles,
 } from 'lucide-react'
 import ProgressoBar from '../components/ProgressoBar'
+import EntradaDados from '../components/EntradaDados'
+import ConciliacaoModal from '../components/ConciliacaoModal'
 
 const TURNOS = [
   { value: 'matutino',   label: 'Matutino',   desc: 'Manhã',      icon: Sun,    cor: 'text-amber-500',  bg: 'bg-amber-50',  border: 'border-amber-200' },
@@ -275,14 +277,184 @@ function ModalDisciplina({ onCriar, onFechar }) {
   )
 }
 
+function PlanejamentoIA({ disciplina, onAtualizado }) {
+  const [dadosIA, setDadosIA] = useState(null)
+  const [modalDatas, setModalDatas] = useState(false)
+
+  return (
+    <div className="border border-lexiona-100 rounded-2xl overflow-hidden bg-lexiona-50/40">
+      <div className="px-4 py-3 border-b border-lexiona-100 bg-white flex items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-lexiona-600" />
+            <h4 className="font-semibold text-lexiona-900 text-sm">Planejamento com IA</h4>
+          </div>
+          <p className="text-xs text-lexiona-400 mt-0.5">
+            Crie datas futuras, envie insumos e gere plano para aulas pendentes.
+          </p>
+        </div>
+        <button
+          onClick={() => setModalDatas(true)}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-white border border-lexiona-200 text-lexiona-700 hover:bg-lexiona-50 rounded-xl transition"
+        >
+          <CalendarPlus size={14} /> Gerar datas
+        </button>
+      </div>
+
+      <div className="p-4">
+        {dadosIA ? (
+          <div className="bg-white rounded-2xl border border-lexiona-100 shadow-card overflow-hidden">
+            <ConciliacaoModal
+              dados={dadosIA.conteudo_estruturado}
+              insumoId={dadosIA.insumo_id}
+              disciplina={disciplina}
+              onConfirmar={() => {
+                setDadosIA(null)
+                onAtualizado()
+              }}
+              onVoltar={() => setDadosIA(null)}
+            />
+          </div>
+        ) : (
+          <EntradaDados
+            disciplinaId={disciplina.id}
+            onProcessado={setDadosIA}
+          />
+        )}
+      </div>
+
+      {modalDatas && (
+        <ModalGerarDatas
+          disciplina={disciplina}
+          onFechar={() => setModalDatas(false)}
+          onGeradas={() => {
+            setModalDatas(false)
+            onAtualizado()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ModalGerarDatas({ disciplina, onGeradas, onFechar }) {
+  const [inicio, setInicio] = useState(disciplina.periodo_inicio || '')
+  const [fim, setFim] = useState(disciplina.periodo_fim || '')
+  const [dias, setDias] = useState(disciplina.dias_semana || [])
+  const [hInicio, setHInicio] = useState(disciplina.horario_inicio || '')
+  const [hFim, setHFim] = useState(disciplina.horario_fim || '')
+  const [loading, setLoading] = useState(false)
+
+  function toggleDia(i) {
+    setDias(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])
+  }
+
+  async function handleSubmit() {
+    if (!inicio || !fim) { toast.error('Informe o periodo.'); return }
+    if (dias.length === 0) { toast.error('Selecione pelo menos um dia de aula.'); return }
+
+    setLoading(true)
+    try {
+      const res = await api.post(`/disciplinas/${disciplina.id}/aulas/gerar-datas`, {
+        periodo_inicio: inicio,
+        periodo_fim: fim,
+        dias_semana: dias,
+        horario_inicio: hInicio || null,
+        horario_fim: hFim || null,
+      })
+      toast.success(`${res.data.total_aulas_criadas} aula(s) criada(s).`)
+      onGeradas()
+    } catch (err) {
+      toastErro(err, 'Erro ao gerar datas.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-lexiona-100 flex items-center justify-between">
+          <h2 className="font-display font-bold text-lexiona-900">Gerar aulas futuras</h2>
+          <button onClick={onFechar} className="p-2 text-lexiona-400 hover:text-lexiona-700 hover:bg-lexiona-50 rounded-lg transition">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-lexiona-800">Inicio</label>
+              <input type="date" value={inicio} onChange={e => setInicio(e.target.value)}
+                className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-lexiona-800">Fim</label>
+              <input type="date" value={fim} onChange={e => setFim(e.target.value)}
+                className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-lexiona-800">Dias de aula</label>
+            <div className="flex gap-2 flex-wrap">
+              {DIAS_SEMANA.map((d, i) => (
+                <button key={i} onClick={() => toggleDia(i)}
+                  className={`w-10 h-10 rounded-xl text-xs font-medium border transition-all ${dias.includes(i) ? 'bg-lexiona-600 text-white border-lexiona-600' : 'bg-white text-lexiona-600 border-lexiona-200 hover:border-lexiona-400'}`}>
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-lexiona-800">Inicio da aula</label>
+              <input type="time" value={hInicio} onChange={e => setHInicio(e.target.value)}
+                className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-lexiona-800">Fim da aula</label>
+              <input type="time" value={hFim} onChange={e => setHFim(e.target.value)}
+                className="w-full px-4 py-3 border border-lexiona-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lexiona-400 bg-white" />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button onClick={onFechar} className="flex-1 py-2.5 border border-lexiona-200 text-lexiona-600 rounded-xl text-sm font-medium hover:bg-lexiona-50 transition">
+              Cancelar
+            </button>
+            <button onClick={handleSubmit} disabled={loading}
+              className="flex-1 bg-lexiona-600 hover:bg-lexiona-700 text-white py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2">
+              {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Gerar datas'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Disciplinas() {
   const [disciplinas, setDisciplinas] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [expandida, setExpandida] = useState(null)
 
+  async function carregarDisciplinas() {
+    setLoading(true)
+    try {
+      const res = await api.get('/disciplinas/')
+      setDisciplinas(res.data || [])
+    } catch (err) {
+      toastErro(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    api.get('/disciplinas/').then(r => setDisciplinas(r.data || [])).catch(err => toastErro(err)).finally(() => setLoading(false))
+    carregarDisciplinas()
   }, [])
 
   async function handleDesativar(id) {
@@ -394,6 +566,11 @@ export default function Disciplinas() {
                 {isExpanded && (
                   <div className="border-t border-lexiona-50 px-6 pb-5 pt-4 space-y-4 animate-fade-in">
                     <ProgressoBar disciplina={disc} />
+
+                    <PlanejamentoIA
+                      disciplina={disc}
+                      onAtualizado={carregarDisciplinas}
+                    />
 
                     {/* Período */}
                     {disc.periodo_inicio && (

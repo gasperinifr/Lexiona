@@ -105,6 +105,23 @@ class FeriadoCreate(BaseModel):
     tipo: str = "nacional"
 
 
+class GerarDatasAulasRequest(BaseModel):
+    periodo_inicio: date
+    periodo_fim: date
+    dias_semana: List[int] = Field(..., min_length=1, description="0=Dom, 1=Seg ... 6=Sab")
+    horario_inicio: Optional[time] = None
+    horario_fim: Optional[time] = None
+
+    @model_validator(mode="after")
+    def validar_periodo(self):
+        if self.periodo_inicio >= self.periodo_fim:
+            raise ValueError("A data de inicio deve ser anterior a data de fim.")
+        dias_invalidos = [d for d in self.dias_semana if d < 0 or d > 6]
+        if dias_invalidos:
+            raise ValueError("Dias da semana devem estar entre 0 e 6.")
+        return self
+
+
 # ============================================================
 # AULAS
 # ============================================================
@@ -146,8 +163,9 @@ class InsumoTextoRequest(BaseModel):
 
 class GerarPlanoRequest(BaseModel):
     disciplina_id: str
-    insumo_id: str
+    insumo_id: Optional[str] = None
     dados_confirmados: dict  # dados da tela de conciliação
+    aula_ids: Optional[List[str]] = None
 
 
 class ChatMensagem(BaseModel):
