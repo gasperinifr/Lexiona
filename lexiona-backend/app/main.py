@@ -3,7 +3,9 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.config import settings
 from app.routers import auth, disciplinas, aulas, agente, agenda
@@ -37,6 +39,13 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+
+# Serve static assets (e.g., favicon)
+static_dir = Path(__file__).resolve().parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
 
 # CORS
 app.add_middleware(
@@ -100,3 +109,11 @@ async def health():
 @app.get("/")
 async def root():
     return {"message": "Lexiona API v2.0 — Planejamento pedagógico inteligente"}
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    path = Path(__file__).resolve().parent / "static" / "favicon.svg"
+    if path.exists():
+        return FileResponse(path, media_type="image/svg+xml")
+    return JSONResponse(status_code=404, content={})
