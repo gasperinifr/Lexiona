@@ -1,6 +1,6 @@
 # Alternar entre `development` e `production`
 
-Este arquivo descreve os passos mínimos para rodar o backend em produção (ou em um ambiente com serviços reais) e como reverter ao modo de desenvolvimento local.
+Este arquivo descreve os passos mínimos para rodar o backend em produção  e como reverter ao modo de desenvolvimento local.
 
 1) Configurar variáveis de ambiente
 
