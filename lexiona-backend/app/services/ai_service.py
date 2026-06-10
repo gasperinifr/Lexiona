@@ -68,6 +68,8 @@ if settings.environment == "development":
     client = None
 else:
 
+    # Em ambientes não-dev, o cliente já foi inicializado acima.
+    pass
 
 def _handle_groq_error(e: Exception, contexto: str = "") -> None:
     """Converte erros do Groq em HTTPExceptions amigáveis."""
